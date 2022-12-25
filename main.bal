@@ -10,6 +10,7 @@ const string LEAVE = "Leave";
 const string HALF_DAY_LEAVE = "Half Day";
 const string VACAION_EMAIL_START = "Please note that";
 const NUMBER_OF_COULMNS_TO_SKIP = 3; //skip first 3 columns for dates
+const time:Seconds SECONDS_FOR_DAY = 3600 * 24;
 
 //Gsheet related
 const string MEMBER_EMAILS_COLUMN = "C";
@@ -80,8 +81,9 @@ sheets:Client gSheetClient = check new ({
 });
 
 public function main() returns error? {
+    check addColumnsForNextMonthsIfRequired();      //add dates upto next month from current dates to the sheet
     check populateMemberEmailToRowIdTable();
-    check populateDateToColumnLetterTable();
+    dates = check populateDateToColumnLetterTable();
     foreach TeamMemberInGSheet teamMember in members {
         do {
             log:printInfo("Checking for email = " + teamMember.email);
@@ -101,21 +103,49 @@ public function main() returns error? {
     }
 }
 
+function addColumnsForNextMonthsIfRequired() returns error? {
+    table<DateInGsheet> key(date) existingDates = check populateDateToColumnLetterTable();
+    string [] nextMonthDates = getDatesOfFollowingMonth();
+    int columnIndexToStartAddingNextMonthDates = existingDates.length() + NUMBER_OF_COULMNS_TO_SKIP;
+    boolean areNewColumnsAdded = false;
+    foreach string date in nextMonthDates {
+        if !existingDates.hasKey(date) {
+            if !areNewColumnsAdded {    // add empty columns for new dates. As we add dates accending, we will have to add all dates after this. 
+                check addNewColumnsForNewDates(columnIndexToStartAddingNextMonthDates - 1, nextMonthDates, date);
+                areNewColumnsAdded = true;
+            }
+            string columnLetter = indexToColumnName(columnIndexToStartAddingNextMonthDates);
+            string A1NotationOfNewDate = columnLetter + "1";    // headers are at first row
+            check gSheetClient->setCell(spreadSheetId, workSheetName, A1NotationOfNewDate, date);
+            columnIndexToStartAddingNextMonthDates = columnIndexToStartAddingNextMonthDates + 1;
+        }
+    }
+}
+
+function addNewColumnsForNewDates(int columnIndexToStartAddingNextMonthDates, string[] nextMonthDates, string firstAddedDate) returns error? {
+    int? indexOfCurrentDate = nextMonthDates.indexOf(firstAddedDate);
+    if indexOfCurrentDate is int {
+        check gSheetClient-> addColumnsAfterBySheetName(spreadSheetId, workSheetName, columnIndexToStartAddingNextMonthDates, 
+        nextMonthDates.length() - indexOfCurrentDate);
+    }
+}
+
 function getLatestLeaveDates(string teamMemberEmail) returns LeaveDate[]|error {
 
     string searchQuery = string `from:leave-notification@wso2.com to:${teamMemberEmail} -cc:${teamMemberEmail}`;
     LeaveDate[] leaveDates = [];
-    string emailContent = check getLatestEmail(searchQuery) ?: "";
+    string emailContent = check getLatestEmail(searchQuery);
     if emailContent != "" {
         leaveDates = check extractLeaveDates(emailContent);
     }
     return leaveDates;
 }
 
-function getLatestEmail(string searchQuery) returns string?|error {
+function getLatestEmail(string searchQuery) returns string|error {
     gmail:MsgSearchFilter searchFilter = {
         q: searchQuery
     };
+    string emailBody = "";
     stream<gmail:Message, error?> leaveMessages = check gmailClient->listMessages(searchFilter);
     record {gmail:Message value;}|() leaveMsg = check leaveMessages.next();
     if leaveMsg is record {gmail:Message value;} {
@@ -123,11 +153,11 @@ function getLatestEmail(string searchQuery) returns string?|error {
         gmail:Message[]? messages = mailThread.messages;
         if messages is gmail:Message[] {
             foreach gmail:Message message in messages {
-                string emailBody = message.snippet ?: "";
+                emailBody = message.snippet ?: "";
                 if !emailBody.includes(VACAION_EMAIL_START) { //kind reminder, additional comment
                     continue;
                 } else {
-                    return message.snippet;
+                    return emailBody;
                 }
 
             }
@@ -137,6 +167,7 @@ function getLatestEmail(string searchQuery) returns string?|error {
     } else {
         log:printInfo("No leave emails found for" + searchQuery);
     }
+    return emailBody;
 }
 
 function extractLeaveDates(string emailBody) returns LeaveDate[]|error {
@@ -243,8 +274,9 @@ function populateMemberEmailToRowIdTable() returns error? {
     }
 }
 
-function populateDateToColumnLetterTable() returns error? {
+function populateDateToColumnLetterTable() returns table<DateInGsheet> key(date) | error {
     sheets:Row rowWithDates = check gSheetClient->getRow(spreadSheetId, workSheetName, 1);
+    table<DateInGsheet> key(date) datesInGSheet = table [];
     int columnCounter = 0;
     foreach int|string|decimal date in rowWithDates.values {
         if (columnCounter < NUMBER_OF_COULMNS_TO_SKIP) {
@@ -256,11 +288,11 @@ function populateDateToColumnLetterTable() returns error? {
                 columnLetter: indexToColumnName(columnCounter),
                 index: columnCounter
             };
-            dates.add(dateInGSheet);
+            datesInGSheet.add(dateInGSheet);
             columnCounter = columnCounter + 1;
         }
     }
-
+    return datesInGSheet;
 }
 
 // from https://stackoverflow.com/questions/59401548/how-can-i-convert-an-integer-to-a1-notation
@@ -357,5 +389,21 @@ function validateLeaveDate(string date) returns boolean|error {
     } else {
         return false;
     }
+}
+
+function getDatesOfFollowingMonth() returns string [] {
+    string[] datesForNextmonth = [];
+    time:Utc currentTime = time:utcNow();
+    int count = 0;
+    while count < 31 {
+        time:Utc nextDayUtc = time:utcAddSeconds(currentTime, SECONDS_FOR_DAY);
+        time:Civil nextDayCivil = time:utcToCivil(nextDayUtc);
+        string dateDateFormatted = nextDayCivil.day < 10 ? string `0${nextDayCivil.day}` : nextDayCivil.day.toString();
+        string nextDay = dateDateFormatted + "/" + nextDayCivil.month.toString() + "/" + nextDayCivil.year.toString();    //format = dd/m/yyyy
+        datesForNextmonth.push(nextDay);
+        currentTime = nextDayUtc;
+        count = count + 1;
+    }
+    return datesForNextmonth; 
 }
 
