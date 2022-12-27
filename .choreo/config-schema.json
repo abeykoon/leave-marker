@@ -1,0 +1,85 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "hasithah": {
+      "type": "object",
+      "properties": {
+        "leave_marker": {
+          "type": "object",
+          "properties": {
+            "gmailOAuthConfig": {
+              "type": "object",
+              "properties": {
+                "clientId": {
+                  "type": "string"
+                },
+                "clientSecret": {
+                  "type": "string"
+                },
+                "refreshToken": {
+                  "type": "string"
+                },
+                "refreshUrl": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false,
+              "required": [
+                "clientId",
+                "clientSecret",
+                "refreshToken",
+                "refreshUrl"
+              ],
+              "name": "hasithah/leave_marker:0.1.0:OAuth2RefreshTokenGrantConfig",
+              "description": ""
+            },
+            "gsheetOAuthConfig": {
+              "type": "object",
+              "properties": {
+                "clientId": {
+                  "type": "string"
+                },
+                "clientSecret": {
+                  "type": "string"
+                },
+                "refreshToken": {
+                  "type": "string"
+                },
+                "refreshUrl": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false,
+              "required": [
+                "clientId",
+                "clientSecret",
+                "refreshToken",
+                "refreshUrl"
+              ],
+              "name": "hasithah/leave_marker:0.1.0:OAuth2RefreshTokenGrantConfig",
+              "description": ""
+            },
+            "spreadSheetId": {
+              "type": "string",
+              "description": ""
+            },
+            "workSheetName": {
+              "type": "string",
+              "description": ""
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "gmailOAuthConfig",
+            "gsheetOAuthConfig",
+            "spreadSheetId",
+            "workSheetName"
+          ]
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}
