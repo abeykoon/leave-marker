@@ -81,7 +81,7 @@ sheets:Client gSheetClient = check new ({
 });
 
 public function main() returns error? {
-    check addColumnsForNextMonthsIfRequired();      //add dates upto next month from current dates to the sheet
+    //check addColumnsForNextMonthsIfRequired();      //add dates upto next month from current dates to the sheet
     check populateMemberEmailToRowIdTable();
     dates = check populateDateToColumnLetterTable();
     foreach TeamMemberInGSheet teamMember in members {
